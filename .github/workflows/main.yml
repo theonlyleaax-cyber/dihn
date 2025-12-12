@@ -9,126 +9,100 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Configure Core RDP Settings
+      - name: do the rdp stuff
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-                           -Name "fDenyTSConnections" -Value 0 -Force
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-                           -Name "UserAuthentication" -Value 0 -Force
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-                           -Name "SecurityLayer" -Value 0 -Force
-
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
           netsh advfirewall firewall delete rule name="RDP-Tailscale" 2>$null
-          netsh advfirewall firewall add rule name="RDP-Tailscale" `
-            dir=in action=allow protocol=TCP localport=3389
-
+          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
 
-      - name: Create RDP User
+      - name: make the user lol
         run: |
-          $password = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 16 | % {[char]$_})
+          $password = "112233"
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          New-LocalUser -Name "RDP" -Password $securePass -AccountNeverExpires
-          Add-LocalGroupMember -Group "Administrators" -Member "RDP"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
-          
+          New-LocalUser -Name "hexpatcher" -Password $securePass -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "hexpatcher"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "hexpatcher"
           echo "RDP_PASSWORD=$password" >> $env:GITHUB_ENV
 
-      - name: Install Tailscale
+      - name: get tailscale on here
         run: |
           $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
           $installerPath = "$env:TEMP\tailscale.msi"
-          
           Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           Remove-Item $installerPath -Force
-          
-          # ⭐ IMPORTANT: Wait for service to initialize
-          Write-Host "Waiting for Tailscale service to start..."
+          Write-Host "waitin for tailscale to do its thing"
           Start-Sleep -Seconds 10
-          
-          # Ensure service is running
           $service = Get-Service -Name "Tailscale" -ErrorAction SilentlyContinue
           if ($service) {
               if ($service.Status -ne 'Running') {
                   Start-Service -Name "Tailscale"
                   Start-Sleep -Seconds 5
               }
-              Write-Host "Tailscale service status: $($service.Status)"
+              Write-Host "tailscale is: $($service.Status)"
           } else {
-              Write-Error "Tailscale service not found!"
+              Write-Error "bruh tailscale service aint here"
               exit 1
           }
 
-      - name: Establish Tailscale Connection
+      - name: connect tailscale idk
         run: |
           $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe"
-          
-          # Verify CLI exists
           if (-not (Test-Path $tailscale)) {
-              Write-Error "Tailscale CLI not found at $tailscale"
+              Write-Error "cant find tailscale exe wtf"
               exit 1
           }
-          
-          # ⭐ Check if auth key is set
           $authKey = "${{ secrets.TAILSCALE_AUTH_KEY }}"
           if ([string]::IsNullOrEmpty($authKey)) {
-              Write-Error "TAILSCALE_AUTH_KEY secret is not set!"
+              Write-Error "u forgot to set the auth key dummy"
               exit 1
           }
-          
-          Write-Host "Connecting to Tailscale..."
-          
-          # ⭐ Use Start-Process with timeout instead of blocking call
-          $process = Start-Process -FilePath $tailscale `
-              -ArgumentList "up", "--authkey=${{ secrets.TAILSCALE_AUTH_KEY }}", "--hostname=gh-runner-${{ github.run_id }}", "--accept-routes" `
-              -NoNewWindow -PassThru -Wait
-          
+          Write-Host "connecting now hold on"
+          $process = Start-Process -FilePath $tailscale -ArgumentList "up", "--authkey=${{ secrets.TAILSCALE_AUTH_KEY }}", "--hostname=gh-runner-${{ github.run_id }}", "--accept-routes" -NoNewWindow -PassThru -Wait
           if ($process.ExitCode -ne 0) {
-              Write-Host "Tailscale up failed, checking status..."
+              Write-Host "it broke lemme check"
               & $tailscale status
               exit 1
           }
-          
-          # Wait for IP assignment
-          Write-Host "Waiting for Tailscale IP..."
+          Write-Host "tryna get the ip rn"
           $tsIP = $null
           $retries = 0
           while (-not $tsIP -and $retries -lt 15) {
               $tsIP = & $tailscale ip -4 2>$null
               if (-not $tsIP) {
-                  Write-Host "Attempt $($retries + 1)/15 - waiting..."
+                  Write-Host "try $($retries + 1) of 15 still waitin"
                   Start-Sleep -Seconds 3
               }
               $retries++
           }
-          
           if (-not $tsIP) {
-              Write-Host "Tailscale status:"
+              Write-Host "tailscale says:"
               & $tailscale status
-              Write-Error "Failed to get Tailscale IP"
+              Write-Error "couldnt get ip this sucks"
               exit 1
           }
-          
-          Write-Host "Tailscale IP: $tsIP"
+          Write-Host "got it: $tsIP"
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
-      - name: Display Connection Info
+      - name: heres ur info bro
         run: |
           Write-Host ""
           Write-Host "==========================================="
-          Write-Host "          RDP CONNECTION INFO              "
+          Write-Host "          yo here u go                     "
           Write-Host "==========================================="
           Write-Host "Address:  $env:TAILSCALE_IP"
-          Write-Host "Username: RDP"
+          Write-Host "Username: hexpatcher"
           Write-Host "Password: $env:RDP_PASSWORD"
           Write-Host "==========================================="
           Write-Host ""
           
-      - name: Keep Alive
+      - name: keep it runnin
         run: |
           while ($true) {
               $status = & "$env:ProgramFiles\Tailscale\tailscale.exe" status --json | ConvertFrom-Json
-              Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Tailscale: $($status.BackendState) | IP: $env:TAILSCALE_IP"
+              Write-Host "[$(Get-Date -Format 'HH:mm:ss')] tailscale be like: $($status.BackendState) | ip is: $env:TAILSCALE_IP"
               Start-Sleep -Seconds 300
           }
