@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: do the rdp stuff
+      - name: sets up rdp (@hexpatcher)
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
@@ -18,16 +18,14 @@ jobs:
           netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
 
-      - name: make the user lol
+      - name: creates user (@hexpatcher)
         run: |
-          $password = "112233"
-          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          New-LocalUser -Name "hexpatcher" -Password $securePass -AccountNeverExpires
-          Add-LocalGroupMember -Group "Administrators" -Member "hexpatcher"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "hexpatcher"
-          echo "RDP_PASSWORD=$password" >> $env:GITHUB_ENV
+          net user hexpatcher "112233aA!" /add /y
+          net localgroup Administrators hexpatcher /add
+          net localgroup "Remote Desktop Users" hexpatcher /add
+          echo "RDP_PASSWORD=112233aA!" >> $env:GITHUB_ENV
 
-      - name: get tailscale on here
+      - name: uses your tailscale (@hexpatcher)
         run: |
           $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
           $installerPath = "$env:TEMP\tailscale.msi"
@@ -48,7 +46,7 @@ jobs:
               exit 1
           }
 
-      - name: connect tailscale idk
+      - name: connects tailscale to the github (@hexpatcher)
         run: |
           $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe"
           if (-not (Test-Path $tailscale)) {
@@ -87,11 +85,11 @@ jobs:
           Write-Host "got it: $tsIP"
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
-      - name: heres ur info bro
+      - name: info (@hexpatcher)
         run: |
           Write-Host ""
           Write-Host "==========================================="
-          Write-Host "          yo here u go                     "
+          Write-Host "                  info                     "
           Write-Host "==========================================="
           Write-Host "Address:  $env:TAILSCALE_IP"
           Write-Host "Username: hexpatcher"
@@ -99,7 +97,7 @@ jobs:
           Write-Host "==========================================="
           Write-Host ""
           
-      - name: keep it runnin
+      - name: keep running (@hexpatcher)
         run: |
           while ($true) {
               $status = & "$env:ProgramFiles\Tailscale\tailscale.exe" status --json | ConvertFrom-Json
