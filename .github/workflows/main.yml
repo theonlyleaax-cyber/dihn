@@ -20,10 +20,10 @@ jobs:
 
       - name: creates user (@fvndzs)
         run: |
-          net user fvndzs "fvndzs@2026" /add /y
+          net user fvndzs "fvndzsGOAT@2026" /add /y
           net localgroup Administrators fvndzs /add
           net localgroup "Remote Desktop Users" fvndzs /add
-          echo "RDP_PASSWORD=fvndzs@2026" >> $env:GITHUB_ENV
+          echo "RDP_PASSWORD=fvndzsGOAT@2026" >> $env:GITHUB_ENV
 
       - name: uses your tailscale (@fvndzs)
         run: |
